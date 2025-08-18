@@ -1,27 +1,93 @@
 name: Analytics
-channels:
-  - conda-forge
+channels: [conda-forge]
 dependencies:
+  # --- Python + Jupyter ---
   - python=3.11
   - pip
   - ipykernel
   - jupyterlab
+  - ipywidgets
+
+  # --- Core analytics / compute ---
   - pandas
   - numpy
+  - polars
   - pyarrow
   - fastparquet
+  - bottleneck
+  - numexpr
+  - duckdb            # local SQL engine (conda build)
+
+  # --- Files, Excel, legacy stats packages ---
   - openpyxl
   - xlsxwriter
+  - xlrd               # read legacy .xls
+  - pyxlsb             # read .xlsb
+  - pyreadstat         # SAS/Stata/SPSS files common in health data
+
+  # --- Compression & perf (Parquet/Arrow friendliness) ---
+  - lz4
+  - zstandard
+  - python-snappy
+
+  # --- Viz ---
   - matplotlib
   - seaborn
   - plotly
+  - altair
+
+  # --- Connectivity (DBs, HTTP) ---
+  - sqlalchemy
+  - pyodbc             # SQL Server via ODBC 18
+  - psycopg2           # PostgreSQL (optional but common)
+  - pymysql            # MySQL/MariaDB (optional)
   - requests
   - httpx
-  - sqlalchemy
-  - pyodbc
-  - polars
+  - aiohttp            # async pulls for APIs
+
+  # --- Cloud & storage (Fabric/OneLake + common buckets) ---
+  - fsspec
+  - adlfs              # Azure Data Lake (Gen2) / OneLake via fsspec
+  - azure-identity
+  - azure-core
+  - azure-storage-blob
+  - azure-storage-file-datalake
+  - s3fs               # Amazon S3 (optional but small)
+  - gcsfs              # Google Cloud Storage (optional)
+
+  # --- Data validation / modeling / utilities ---
+  - pydantic
+  - pandera            # DataFrame schema checks (lighter than GE)
+  - dateparser
+  - pyyaml
+  - jinja2             # templated SQL/ETL
+  - rich               # prettier CLI logs
+  - tenacity           # retries
+  - tqdm               # progress bars
+  - orjson             # fast JSON
+
+  # --- ML / stats (light but capable) ---
+  - scikit-learn
+  - statsmodels
+
+  # --- Notebook ops & testing ---
+  - nbconvert
+  - papermill
+  - pytest
+
+  # --- Lint/format (so VS Code works even offline) ---
+  - black
+  - ruff
+  - isort
+
+  # --- Security/crypto & tz data ---
+  - cryptography
+  - tzdata
+
+  # --- Keep these via pip (best wheels or not always on conda) ---
   - pip:
-      - duckdb
-      - deltalake
-      - msal
+      - deltalake          # Delta Lake tables (good with Fabric/OneLake)
+      - msal               # AAD auth flows (can stay pip or conda; pip is fine)
       - python-dotenv
+      - powerbiclient      # (Optional) embed Power BI in notebooks
+
