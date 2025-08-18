@@ -3,7 +3,7 @@ trigger:
 - main
 
 variables:
-  EnableCodeSigning: 'flase'                 # default ON
+  EnableCodeSigning: 'false'                 # default ON
   CodeSignSecureFile: 'codesign.pfx'        # secure file name
   ReleasePilotEnvironmentName: 'Pilot-Release'
   ReleaseProdEnvironmentName: 'Prod-Release'
