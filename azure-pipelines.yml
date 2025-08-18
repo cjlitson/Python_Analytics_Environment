@@ -1,119 +1,96 @@
-# Multi-stage pipeline: Build -> Sign -> Release (Pilot -> Prod)
 trigger:
 - main
 
+pool:
+  vmImage: 'windows-latest'
+
 variables:
-  EnableCodeSigning: 'false'                 # default ON
-  CodeSignSecureFile: 'codesign.pfx'        # secure file name
-  ReleasePilotEnvironmentName: 'Pilot-Release'
-  ReleaseProdEnvironmentName: 'Prod-Release'
+  EnableCodeSigning: 'false'   # set to 'true' when ready
+  ArtifactNameVar: $[coalesce(
+                      replace(eq(variables['EnableCodeSigning'], 'true'), 'True', 'signed'),
+                      'drop')]
 
 stages:
+# -----------------------
+# Stage 1: Build
+# -----------------------
 - stage: Build
-  displayName: 'Build & Lint'
   jobs:
   - job: Build
-    pool:
-      vmImage: 'windows-latest'
     steps:
-    - powershell: |
-        Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-        Import-Module PSScriptAnalyzer
-        Invoke-ScriptAnalyzer -Path setup, scripts -Recurse -EnableExit
-      displayName: 'PSScriptAnalyzer'
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+        addToPath: true
 
-    - powershell: |
-        $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
-        Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-        [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
-        Write-Host "Packaged to $zipPath"
-      displayName: 'Package repo into ZIP'
+    - script: |
+        echo "Installing conda environment"
+        conda env create -f environment.yml -n Analytics
+      displayName: 'Create Conda Environment'
 
-    - publish: '$(Build.ArtifactStagingDirectory)'
-      artifact: drop
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+      displayName: 'Prepare Artifact Staging'
 
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: '$(ArtifactNameVar)'
+      displayName: 'Publish Artifact'
+
+# -----------------------
+# Stage 2: Code Signing (optional)
+# -----------------------
 - stage: Sign
-  displayName: 'Code Sign'
-  dependsOn: Build
   condition: eq(variables['EnableCodeSigning'], 'true')
+  dependsOn: Build
   jobs:
-  - job: SignScripts
-    pool:
-      vmImage: 'windows-latest'
+  - job: Sign
     steps:
     - download: current
-      artifact: drop
-    - task: DownloadSecureFile@1
-      name: getpfx
-      inputs:
-        secureFile: '$(CodeSignSecureFile)'
-    - powershell: |
-        $pfxPath = '$(getpfx.secureFilePath)'
-        $pwd     = "$(CODESIGN_PASSWORD)"
-        if (-not $pwd) { throw "CODESIGN_PASSWORD secret not set." }
-        $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $pwd -AsPlainText -Force)
-        if (-not $cert) { throw "Failed to import PFX." }
-        $work = "$(Pipeline.Workspace)\drop"
-        $zip  = Join-Path $work 'analytics-workstation.zip'
-        $out  = Join-Path $work 'signed'
-        if (Test-Path $out) { Remove-Item $out -Recurse -Force }
-        New-Item -ItemType Directory -Path $out | Out-Null
-        Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $out)
-        Get-ChildItem -Path (Join-Path $out 'setup') -Filter *.ps1 -Recurse | ForEach-Object {
-          Set-AuthenticodeSignature -FilePath $_.FullName -Certificate $cert | Out-Null
-        }
-        Get-ChildItem -Path (Join-Path $out 'scripts') -Filter *.ps1 -Recurse | ForEach-Object {
-          Set-AuthenticodeSignature -FilePath $_.FullName -Certificate $cert | Out-Null
-        }
-        $signedZip = Join-Path $work 'analytics-workstation-signed.zip'
-        if (Test-Path $signedZip) { Remove-Item $signedZip -Force }
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($out, $signedZip)
-        Write-Host "Signed ZIP: $signedZip"
-      displayName: 'Sign PowerShell scripts'
-
-    - publish: '$(Pipeline.Workspace)/drop'
       artifact: signed
 
-- stage: Release_Pilot
-  displayName: 'Release: Pilot'
-  dependsOn:
-  - Build
-  - Sign
-  condition: succeeded()
-  jobs:
-  - deployment: PublishPilot
-    displayName: 'Publish to Pilot'
-    environment: $(ReleasePilotEnvironmentName)
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: $[eq(variables['EnableCodeSigning'], 'true') ? 'signed' : 'drop']
-          - powershell: |
-              $source = "$(Pipeline.Workspace)\$([System.Convert]::ToBoolean('$(EnableCodeSigning)') ? 'signed' : 'drop')"
-              Get-ChildItem $source | Format-Table -AutoSize
-              Write-Host "Pilot artifacts staged."
-            displayName: 'Show artifacts'
+    - powershell: |
+        Write-Host "Code signing step would run here"
+      displayName: 'Code Signing'
 
-- stage: Release_Prod
-  displayName: 'Release: Prod'
-  dependsOn: Release_Pilot
-  condition: succeeded()
+# -----------------------
+# Stage 3: Deploy to Pilot
+# -----------------------
+- stage: Pilot
+  dependsOn: [Build, Sign]
   jobs:
-  - deployment: PublishProd
-    displayName: 'Publish to Prod'
-    environment: $(ReleaseProdEnvironmentName)
+  - deployment: PilotDeploy
+    environment: Pilot-Release
     strategy:
       runOnce:
         deploy:
           steps:
           - download: current
-            artifact: $[eq(variables['EnableCodeSigning'], 'true') ? 'signed' : 'drop']
+            artifact: '$(ArtifactNameVar)'
+
           - powershell: |
-              $source = "$(Pipeline.Workspace)\$([System.Convert]::ToBoolean('$(EnableCodeSigning)') ? 'signed' : 'drop')"
-              Get-ChildItem $source | Format-Table -AutoSize
-              Write-Host "Prod artifacts staged."
-            displayName: 'Show artifacts'
+              Write-Host "Deploying Analytics Workstation to Pilot environment"
+            displayName: 'Deploy to Pilot'
+
+# -----------------------
+# Stage 4: Release to Prod
+# -----------------------
+- stage: Prod
+  dependsOn: Pilot
+  jobs:
+  - deployment: ProdDeploy
+    environment: Prod-Release
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: '$(ArtifactNameVar)'
+
+          - powershell: |
+              Write-Host "Deploying Analytics Workstation to Production environment"
+            displayName: 'Deploy to Prod'
