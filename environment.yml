@@ -1,0 +1,27 @@
+name: Analytics
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - ipykernel
+  - jupyterlab
+  - pandas
+  - numpy
+  - pyarrow
+  - fastparquet
+  - openpyxl
+  - xlsxwriter
+  - matplotlib
+  - seaborn
+  - plotly
+  - requests
+  - httpx
+  - sqlalchemy
+  - pyodbc
+  - polars
+  - pip:
+      - duckdb
+      - deltalake
+      - msal
+      - python-dotenv

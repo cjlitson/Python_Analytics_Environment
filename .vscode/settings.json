@@ -1,0 +1,19 @@
+{
+  "python.defaultInterpreterPath": "C:/Users/${env:USERNAME}/Miniconda3/envs/Analytics/python.exe",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.formatting.provider": "black",
+  "ruff.lint.args": [
+    "--select=E,F,I",
+    "--line-length=100"
+  ],
+  "jupyter.kernels.filter": [
+    "Python 3.11 (Analytics)"
+  ],
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/.ipynb_checkpoints": true
+  },
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}
