@@ -5,10 +5,10 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  # Flip to 'true' only when you actually add signing steps/cert
+  # Flip to 'true' only when you actually enable the Sign stage below
   EnableCodeSigning: 'false'
-  # Runtime expression: resolves at run time on the agent
-  ArtifactNameVar: $[eq(variables['EnableCodeSigning'], 'true') ? 'signed' : 'drop']
+  # Keep a simple default; we’ll pick the right artifact via step conditions
+  ArtifactNameVar: 'drop'
 
 stages:
 # -----------------------
@@ -19,7 +19,7 @@ stages:
   jobs:
   - job: Build
     steps:
-    # Optional lint (safe across folders)
+    # Optional lint (handles multiple folders safely)
     - task: PowerShell@2
       displayName: "Lint scripts (PSScriptAnalyzer)"
       inputs:
@@ -42,7 +42,7 @@ stages:
           [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
 
     - task: PublishBuildArtifacts@1
-      displayName: "Publish artifact"
+      displayName: "Publish artifact (drop)"
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: 'drop'
@@ -57,17 +57,19 @@ stages:
   jobs:
   - job: Sign
     steps:
-    # If you enable signing later: download the 'drop' artifact, sign files, then republish as 'signed'
+    # Download the unsigned artifact from Build
     - download: current
       artifact: drop
 
+    # TODO: replace with real signing if/when you add cert + password
     - task: PowerShell@2
-      displayName: "Code signing step would run here"
+      displayName: "Signing placeholder"
       inputs:
         targetType: inline
         script: |
-          Write-Host "Signing placeholder - add cert import + Set-AuthenticodeSignature here."
+          Write-Host "Add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature here."
 
+    # Publish a 'signed' artifact (even if placeholder for now)
     - task: PublishBuildArtifacts@1
       displayName: "Publish signed artifact"
       inputs:
@@ -87,17 +89,25 @@ stages:
       runOnce:
         deploy:
           steps:
+          # Default: use 'drop' artifact when signing is OFF
           - download: current
-            artifact: '$(ArtifactNameVar)'
+            artifact: drop
+            condition: ne(variables['EnableCodeSigning'], 'true')
+
+          # If signing is ON, use 'signed'
+          - download: current
+            artifact: signed
+            condition: eq(variables['EnableCodeSigning'], 'true')
+
           - task: PowerShell@2
-            displayName: 'Pilot no-op'
+            displayName: "Pilot no-op"
             inputs:
               targetType: inline
               script: |
-                Write-Host "Pilot: fetched artifact '$(ArtifactNameVar)'."
+                Write-Host "Pilot: fetched artifact (signed? $(EnableCodeSigning))."
 
 # -----------------------
-# Stage 4: Release to Prod
+# Stage 4: Deploy to Prod
 # -----------------------
 - stage: Prod
   displayName: "Deploy to Production"
@@ -109,11 +119,19 @@ stages:
       runOnce:
         deploy:
           steps:
+          # Default: use 'drop'
           - download: current
-            artifact: '$(ArtifactNameVar)'
+            artifact: drop
+            condition: ne(variables['EnableCodeSigning'], 'true')
+
+          # If signing is ON, use 'signed'
+          - download: current
+            artifact: signed
+            condition: eq(variables['EnableCodeSigning'], 'true')
+
           - task: PowerShell@2
-            displayName: 'Prod no-op'
+            displayName: "Prod no-op"
             inputs:
               targetType: inline
               script: |
-                Write-Host "Prod: fetched artifact '$(ArtifactNameVar)'."
+                Write-Host "Prod: fetched artifact (signed? $(EnableCodeSigning))."
