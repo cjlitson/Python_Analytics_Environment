@@ -15,31 +15,29 @@ stages:
 # Stage 1: Build
 # -----------------------
 - stage: Build
+  displayName: "Build & Package"
   jobs:
   - job: Build
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.11'
-        addToPath: true
+    # Optional lint
+    - powershell: |
+        Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+        Invoke-ScriptAnalyzer -Path setup, scripts -Recurse -EnableExit
+      displayName: "Lint scripts (PSScriptAnalyzer)"
 
-    - script: |
-        echo "Installing conda environment"
-        conda env create -f environment.yml -n Analytics
-      displayName: 'Create Conda Environment'
-
-    - task: CopyFiles@2
-      inputs:
-        SourceFolder: '$(Build.SourcesDirectory)'
-        Contents: '**'
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
-      displayName: 'Prepare Artifact Staging'
+    # Package repo into zip
+    - powershell: |
+        $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
+        Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
+        [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
+      displayName: "Package repository to ZIP"
 
     - task: PublishBuildArtifacts@1
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: '$(ArtifactNameVar)'
-      displayName: 'Publish Artifact'
+        ArtifactName: 'drop'
+      displayName: "Publish artifact"
+
 
 # -----------------------
 # Stage 2: Code Signing (optional)
