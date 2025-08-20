@@ -7,7 +7,7 @@ pool:
 variables:
   # Flip to 'true' only when you actually enable the Sign stage below
   EnableCodeSigning: 'false'
-  # Keep a simple default; we’ll pick the right artifact via step conditions
+  # Keep simple default; we pick the right artifact via step-level conditions
   ArtifactNameVar: 'drop'
 
 stages:
@@ -19,17 +19,26 @@ stages:
   jobs:
   - job: Build
     steps:
-    # Optional lint (handles multiple folders safely)
+    # Lint (fail on ERROR only; show warnings/info)
     - task: PowerShell@2
       displayName: "Lint scripts (PSScriptAnalyzer)"
       inputs:
         targetType: inline
         script: |
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          Get-ChildItem -Path "$(Build.SourcesDirectory)" -Recurse -Include *.ps1 |
-            ForEach-Object {
-              Invoke-ScriptAnalyzer -Path $_.FullName -EnableExit
-            }
+          $settings = "$(Build.SourcesDirectory)\setup\PSScriptAnalyzerSettings.psd1"
+
+          $errors = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity Error -Settings $settings
+          if ($errors) {
+            $errors | Format-Table -AutoSize
+            throw "PSScriptAnalyzer found error-severity issues."
+          }
+
+          $warnInfo = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity @('Warning','Information') -Settings $settings
+          if ($warnInfo) {
+            Write-Host "`nNon-blocking PSScriptAnalyzer findings:"
+            $warnInfo | Format-Table -AutoSize
+          }
 
     # Package repo into zip
     - task: PowerShell@2
@@ -57,11 +66,9 @@ stages:
   jobs:
   - job: Sign
     steps:
-    # Download the unsigned artifact from Build
     - download: current
       artifact: drop
 
-    # TODO: replace with real signing if/when you add cert + password
     - task: PowerShell@2
       displayName: "Signing placeholder"
       inputs:
@@ -69,7 +76,6 @@ stages:
         script: |
           Write-Host "Add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature here."
 
-    # Publish a 'signed' artifact (even if placeholder for now)
     - task: PublishBuildArtifacts@1
       displayName: "Publish signed artifact"
       inputs:
@@ -89,12 +95,10 @@ stages:
       runOnce:
         deploy:
           steps:
-          # Default: use 'drop' artifact when signing is OFF
           - download: current
             artifact: drop
             condition: ne(variables['EnableCodeSigning'], 'true')
 
-          # If signing is ON, use 'signed'
           - download: current
             artifact: signed
             condition: eq(variables['EnableCodeSigning'], 'true')
@@ -119,12 +123,10 @@ stages:
       runOnce:
         deploy:
           steps:
-          # Default: use 'drop'
           - download: current
             artifact: drop
             condition: ne(variables['EnableCodeSigning'], 'true')
 
-          # If signing is ON, use 'signed'
           - download: current
             artifact: signed
             condition: eq(variables['EnableCodeSigning'], 'true')
