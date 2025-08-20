@@ -5,10 +5,10 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  EnableCodeSigning: 'false'   # set to 'true' when ready
-  ArtifactNameVar: $[coalesce(
-                      replace(eq(variables['EnableCodeSigning'], 'true'), 'True', 'signed'),
-                      'drop')]
+  # Flip to 'true' only when you actually add signing steps/cert
+  EnableCodeSigning: 'false'
+  # Runtime expression: resolves at run time on the agent
+  ArtifactNameVar: $[eq(variables['EnableCodeSigning'], 'true') ? 'signed' : 'drop']
 
 stages:
 # -----------------------
@@ -19,46 +19,66 @@ stages:
   jobs:
   - job: Build
     steps:
-    # Optional lint
-    - powershell: |
-        Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-        Invoke-ScriptAnalyzer -Path setup, scripts -Recurse -EnableExit
+    # Optional lint (safe across folders)
+    - task: PowerShell@2
       displayName: "Lint scripts (PSScriptAnalyzer)"
+      inputs:
+        targetType: inline
+        script: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Get-ChildItem -Path "$(Build.SourcesDirectory)" -Recurse -Include *.ps1 |
+            ForEach-Object {
+              Invoke-ScriptAnalyzer -Path $_.FullName -EnableExit
+            }
 
     # Package repo into zip
-    - powershell: |
-        $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
-        Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-        [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
+    - task: PowerShell@2
       displayName: "Package repository to ZIP"
+      inputs:
+        targetType: inline
+        script: |
+          $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
+          Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
+          [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
 
     - task: PublishBuildArtifacts@1
+      displayName: "Publish artifact"
       inputs:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: 'drop'
-      displayName: "Publish artifact"
-
 
 # -----------------------
-# Stage 2: Code Signing (optional)
+# Stage 2: Code Signing (optional placeholder)
 # -----------------------
 - stage: Sign
-  condition: eq(variables['EnableCodeSigning'], 'true')
+  displayName: "Code Signing"
   dependsOn: Build
+  condition: eq(variables['EnableCodeSigning'], 'true')
   jobs:
   - job: Sign
     steps:
+    # If you enable signing later: download the 'drop' artifact, sign files, then republish as 'signed'
     - download: current
-      artifact: signed
+      artifact: drop
 
-    - powershell: |
-        Write-Host "Code signing step would run here"
-      displayName: 'Code Signing'
+    - task: PowerShell@2
+      displayName: "Code signing step would run here"
+      inputs:
+        targetType: inline
+        script: |
+          Write-Host "Signing placeholder - add cert import + Set-AuthenticodeSignature here."
+
+    - task: PublishBuildArtifacts@1
+      displayName: "Publish signed artifact"
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'signed'
 
 # -----------------------
 # Stage 3: Deploy to Pilot
 # -----------------------
 - stage: Pilot
+  displayName: "Deploy to Pilot"
   dependsOn: [Build, Sign]
   jobs:
   - deployment: PilotDeploy
@@ -69,15 +89,18 @@ stages:
           steps:
           - download: current
             artifact: '$(ArtifactNameVar)'
-
-          - powershell: |
-              Write-Host "Deploying Analytics Workstation to Pilot environment"
-            displayName: 'Deploy to Pilot'
+          - task: PowerShell@2
+            displayName: 'Pilot no-op'
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Pilot: fetched artifact '$(ArtifactNameVar)'."
 
 # -----------------------
 # Stage 4: Release to Prod
 # -----------------------
 - stage: Prod
+  displayName: "Deploy to Production"
   dependsOn: Pilot
   jobs:
   - deployment: ProdDeploy
@@ -88,7 +111,9 @@ stages:
           steps:
           - download: current
             artifact: '$(ArtifactNameVar)'
-
-          - powershell: |
-              Write-Host "Deploying Analytics Workstation to Production environment"
-            displayName: 'Deploy to Prod'
+          - task: PowerShell@2
+            displayName: 'Prod no-op'
+            inputs:
+              targetType: inline
+              script: |
+                Write-Host "Prod: fetched artifact '$(ArtifactNameVar)'."
