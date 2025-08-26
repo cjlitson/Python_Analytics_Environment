@@ -1,153 +1,154 @@
-# ===================== Triggers =====================
-# Auto-run on main, but only when relevant files change.
+# ---------- Triggers (auto on main, limit to relevant paths) ----------
 trigger:
-  branches: { include: [ main ] }
+  branches:
+    include:
+      - main
   paths:
     include:
       - environment.yml
       - setup/**
       - azure-pipelines.yml
 pr:
-- main
+  - main
 
 pool:
   vmImage: 'windows-latest'
 
 variables:
-  # Flip to 'true' only after you upload a codesign cert + CODESIGN_PASSWORD secret.
-  EnableCodeSigning: 'false'
-  # We pick the correct artifact in steps via conditions.
+  EnableCodeSigning: 'false'   # flip to 'true' when cert + password are set
   ArtifactNameVar: 'drop'
 
-# ====================== STAGES ======================
-
-# -------- Stage 1: Build & Package (always runs) ----
+# =====================================================================
+#                                STAGES
+# =====================================================================
 stages:
+# ----------------------- Stage 1: Build & Package ---------------------
 - stage: Build
   displayName: "Build & Package"
   jobs:
-  - job: Build
-    steps:
-    # Lint (fail only on ERROR; show warnings/info)
-    - task: PowerShell@2
-      displayName: "Lint scripts (PSScriptAnalyzer)"
-      inputs:
-        targetType: inline
-        script: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $settings = "$(Build.SourcesDirectory)\setup\PSScriptAnalyzerSettings.psd1"
+    - job: Build
+      steps:
+        - task: PowerShell@2
+          displayName: "Lint scripts (PSScriptAnalyzer)"
+          inputs:
+            targetType: inline
+            script: |
+              Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+              $settings = "$(Build.SourcesDirectory)\setup\PSScriptAnalyzerSettings.psd1"
 
-          $errors = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity Error -Settings $settings
-          if ($errors) {
-            $errors | Format-Table -AutoSize
-            throw "PSScriptAnalyzer found error-severity issues."
-          }
+              $errors = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity Error -Settings $settings
+              if ($errors) {
+                $errors | Format-Table -AutoSize
+                throw "PSScriptAnalyzer found error-severity issues."
+              }
 
-          $warnInfo = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity @('Warning','Information') -Settings $settings
-          if ($warnInfo) {
-            Write-Host "`nNon-blocking PSScriptAnalyzer findings:"
-            $warnInfo | Format-Table -AutoSize
-          }
+              $warnInfo = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity @('Warning','Information') -Settings $settings
+              if ($warnInfo) {
+                Write-Host "`nNon-blocking PSScriptAnalyzer findings:"
+                $warnInfo | Format-Table -AutoSize
+              }
 
-    # Package the repo into a ZIP artifact
-    - task: PowerShell@2
-      displayName: "Package repository to ZIP"
-      inputs:
-        targetType: inline
-        script: |
-          $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
-          Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-          [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
+        - task: PowerShell@2
+          displayName: "Package repository to ZIP"
+          inputs:
+            targetType: inline
+            script: |
+              $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
+              Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
+              [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
 
-    - task: PublishBuildArtifacts@1
-      displayName: "Publish artifact (drop)"
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'drop'
+        - task: PublishBuildArtifacts@1
+          displayName: "Publish artifact (drop)"
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'drop'
 
-# -------- Stage 2: Code Signing (optional; off by default) ----
+# ----------------------- Stage 2: Code Signing (optional) -------------
 - stage: Sign
   displayName: "Code Signing"
   dependsOn: Build
-  condition: eq(variables['EnableCodeSigning'], 'true')   # runs only when you enable signing
+  condition: and(succeeded(), eq(variables['EnableCodeSigning'], 'true'))
   jobs:
-  - job: Sign
-    steps:
-    - download: current
-      artifact: drop
+    - job: Sign
+      steps:
+        - download: current
+          artifact: drop
 
-    # TODO: add real signing (DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature)
-    - task: PowerShell@2
-      displayName: "Signing placeholder"
-      inputs:
-        targetType: inline
-        script: |
-          Write-Host "Signing placeholder - add your signing steps here."
+        - task: PowerShell@2
+          displayName: "Signing placeholder"
+          inputs:
+            targetType: inline
+            script: |
+              Write-Host "Add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature here."
 
-    - task: PublishBuildArtifacts@1
-      displayName: "Publish signed artifact"
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'signed'
+        - task: PublishBuildArtifacts@1
+          displayName: "Publish signed artifact"
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'signed'
 
-# -------- Stage 3: Deploy to Pilot (AUTO; won’t skip when Sign is off) ----
+# ----------------------- Stage 3: Deploy to Pilot (AUTO) --------------
 - stage: Pilot
   displayName: "Deploy to Pilot"
-  dependsOn: Build                                  # key change: do NOT depend directly on Sign
-  condition: and(
-              succeeded('Build'),
-              or(                                       # allow run when signing is off OR after Sign succeeded
-                eq(variables['EnableCodeSigning'], 'false'),
-                succeeded('Sign')
-              )
-            )
+  dependsOn:
+    - Build
+  condition: >-
+    and(
+      succeeded('Build'),
+      or(
+        eq(variables['EnableCodeSigning'], 'false'),
+        succeeded('Sign')
+      )
+    )
   jobs:
-  - deployment: PilotDeploy
-    environment: Pilot-Release
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          # Default: use 'drop'
-          - download: current
-            artifact: drop
-            condition: ne(variables['EnableCodeSigning'], 'true')
+    - deployment: PilotDeploy
+      environment: Pilot-Release
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - download: current
+                artifact: drop
+                condition: ne(variables['EnableCodeSigning'], 'true')
 
-          # If signing is ON, use 'signed'
-          - download: current
-            artifact: signed
-            condition: eq(variables['EnableCodeSigning'], 'true')
+              - download: current
+                artifact: signed
+                condition: eq(variables['EnableCodeSigning'], 'true')
 
-          - task: PowerShell@2
-            displayName: "Pilot no-op"
-            inputs:
-              targetType: inline
-              script: |
-                Write-Host "Pilot: fetched artifact (signed? $(EnableCodeSigning))."
+              - task: PowerShell@2
+                displayName: "Pilot no-op"
+                inputs:
+                  targetType: inline
+                  script: |
+                    Write-Host "Pilot: fetched artifact (signed? $(EnableCodeSigning))."
 
-# -------- Stage 4: Deploy to Prod (runs after Pilot; approval via environment) ----
+# ----------------------- Stage 4: Deploy to Prod (APPROVAL) -----------
 - stage: Prod
   displayName: "Deploy to Production"
-  dependsOn: Pilot
-  condition: succeeded('Pilot')                     # Prod runs iff Pilot succeeded (so it won’t skip)
+  dependsOn:
+    - Pilot
+  condition: >-
+    and(
+      succeeded('Pilot')
+    )
   jobs:
-  - deployment: ProdDeploy
-    environment: Prod-Release                       # add an Approval check in Environments UI
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: drop
-            condition: ne(variables['EnableCodeSigning'], 'true')
+    - deployment: ProdDeploy
+      environment: Prod-Release   # put an Approval check on this environment in DevOps
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - download: current
+                artifact: drop
+                condition: ne(variables['EnableCodeSigning'], 'true')
 
-          - download: current
-            artifact: signed
-            condition: eq(variables['EnableCodeSigning'], 'true')
+              - download: current
+                artifact: signed
+                condition: eq(variables['EnableCodeSigning'], 'true')
 
-          - task: PowerShell@2
-            displayName: "Prod no-op"
-            inputs:
-              targetType: inline
-              script: |
-                Write-Host "Prod: fetched artifact (signed? $(EnableCodeSigning))."
+              - task: PowerShell@2
+                displayName: "Prod no-op"
+                inputs:
+                  targetType: inline
+                  script: |
+                    Write-Host "Prod: fetched artifact (signed? $(EnableCodeSigning))."
