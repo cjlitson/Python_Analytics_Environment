@@ -127,13 +127,10 @@ stages:
   displayName: "Deploy to Production"
   dependsOn:
     - Pilot
-  condition: >-
-    and(
-      succeeded('Pilot')
-    )
+  condition: "succeeded('Pilot')"   # <- simple, safe
   jobs:
     - deployment: ProdDeploy
-      environment: Prod-Release   # put an Approval check on this environment in DevOps
+      environment: Prod-Release
       strategy:
         runOnce:
           deploy:
@@ -141,14 +138,13 @@ stages:
               - download: current
                 artifact: drop
                 condition: ne(variables['EnableCodeSigning'], 'true')
-
               - download: current
                 artifact: signed
                 condition: eq(variables['EnableCodeSigning'], 'true')
-
               - task: PowerShell@2
                 displayName: "Prod no-op"
                 inputs:
                   targetType: inline
                   script: |
                     Write-Host "Prod: fetched artifact (signed? $(EnableCodeSigning))."
+
