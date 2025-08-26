@@ -1,51 +1,44 @@
-<#
+<# 
 .SYNOPSIS
-  Admin-only installer (no Power BI; IT-managed). Installs core apps with optional version pinning.
-.PARAMETER VersionsJsonPath
-  Path to a JSON file mapping winget IDs to versions. If a version is non-empty, it's passed to winget.
-  Default: setup/app-versions.json
+Installs and configures admin-level prerequisites for the Analytics Workstation.
 #>
-[CmdletBinding()]
-param(
-  [string]$VersionsJsonPath = "$PSScriptRoot\app-versions.json",
-  [switch]$IncludeAzureDataStudio,
-  [switch]$IncludeOneLakeNote
-)
-$ErrorActionPreference = "Stop"
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-function Assert-Admin {
-  $id = [Security.Principal.WindowsIdentity]::GetCurrent()
-  $p  = New-Object Security.Principal.WindowsPrincipal($id)
-  if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    throw "Please run this script as Administrator."
-  }
+
+# Show informational messages in console and pipelines
+$InformationPreference = 'Continue'
+
+function Install-WingetIfMissing {
+    [CmdletBinding()]
+    param()
+
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Information "winget not found. Installing App Installer (winget)..."
+        
+        # Example install logic for winget/App Installer
+        $wingetUrl = "https://aka.ms/getwinget"
+        $wingetInstaller = "$env:TEMP\AppInstaller.msi"
+        Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetInstaller
+        Start-Process msiexec.exe -Wait -ArgumentList "/I `"$wingetInstaller`" /quiet /norestart"
+        Remove-Item $wingetInstaller -Force
+    }
+    else {
+        Write-Information "winget is already available."
+    }
 }
-function Ensure-Winget {
-  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host "winget not found. Install/Update 'App Installer' from Microsoft Store, then rerun." -ForegroundColor Yellow
-    throw "winget not available"
-  }
+
+# Example: install Miniconda (update to match your environment)
+$minicondaInstaller = "$env:TEMP\Miniconda3-latest-Windows-x86_64.exe"
+if (-not (Test-Path "C:\ProgramData\Miniconda3\Scripts\conda.exe")) {
+    Write-Information "Downloading Miniconda installer..."
+    Invoke-WebRequest -Uri "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe" -OutFile $minicondaInstaller
+
+    Write-Information "Installing Miniconda silently..."
+    Start-Process -FilePath $minicondaInstaller -ArgumentList "/InstallationType=AllUsers /AddToPath=1 /RegisterPython=0 /S /D=C:\ProgramData\Miniconda3" -Wait
+    Remove-Item $minicondaInstaller -Force
 }
-function Install-App([string]$Id, [string]$Version) {
-  Write-Host "Installing $Id $(if($Version){"(version $Version)"}else{"(latest)"}) ..." -ForegroundColor Cyan
-  $args = @("-e","--id",$Id,"--accept-package-agreements","--accept-source-agreements","--silent")
-  if ($Version) { $args += @("--version",$Version) }
-  winget install @args
+else {
+    Write-Information "Miniconda already installed."
 }
-Assert-Admin
-Ensure-Winget
-$VersionMap = Get-Content $VersionsJsonPath | ConvertFrom-Json
-Install-App "Microsoft.VisualStudioCode"           $VersionMap."Microsoft.VisualStudioCode"
-Install-App "Git.Git"                              $VersionMap."Git.Git"
-Install-App "Anaconda.Miniconda3"                  $VersionMap."Anaconda.Miniconda3"
-Install-App "Microsoft.ODBCDriverForSQLServer.18"  $VersionMap."Microsoft.ODBCDriverForSQLServer.18"
-Install-App "Microsoft.AzureCLI"                   $VersionMap."Microsoft.AzureCLI"
-Install-App "Microsoft.Azure.AZCopy.10"            $VersionMap."Microsoft.Azure.AZCopy.10"
-if ($IncludeAzureDataStudio) {
-  Install-App "Microsoft.AzureDataStudio"          $VersionMap."Microsoft.AzureDataStudio"
-}
-Write-Host "`n✅ Admin apps installed." -ForegroundColor Green
-if ($IncludeOneLakeNote) {
-  Write-Host "Note: OneLake File Explorer is an MSIX. Package/approve via IT if desired." -ForegroundColor Yellow
-}
-Write-Host "Next: Have users run setup/Install-UserEnv.ps1 (no admin required)."
+
+# Example: call winget function for VS Code or other tools
+Install-WingetIfMissing
+Write-Information "Admin setup complete."
