@@ -1,20 +1,28 @@
-# Disable automatic triggers (manual runs only)
-trigger: none
-pr: none
+# ---------- Triggers (auto on main, only when these paths change) ----------
+trigger:
+  branches: { include: [ main ] }
+  paths:
+    include:
+      - environment.yml
+      - setup/**
+      - azure-pipelines.yml
+pr:
+- main
 
 pool:
   vmImage: 'windows-latest'
 
 variables:
-  # Flip to 'true' only when you actually enable the Sign stage below
+  # Flip to 'true' only after you upload cert + set CODESIGN_PASSWORD secret
   EnableCodeSigning: 'false'
-  # Keep simple default; we pick the right artifact via step-level conditions
-  ArtifactNameVar: 'drop'
+  ArtifactNameVar: 'drop'   # we pick the right artifact with step conditions below
 
+# ========================================================================== #
+#                                   STAGES                                   #
+# ========================================================================== #
+
+# ----------------------- Stage 1: Build & Package --------------------------
 stages:
-# -----------------------
-# Stage 1: Build
-# -----------------------
 - stage: Build
   displayName: "Build & Package"
   jobs:
@@ -41,7 +49,7 @@ stages:
             $warnInfo | Format-Table -AutoSize
           }
 
-    # Package repo into zip
+    # Package repo to ZIP
     - task: PowerShell@2
       displayName: "Package repository to ZIP"
       inputs:
@@ -57,9 +65,7 @@ stages:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: 'drop'
 
-# -----------------------
-# Stage 2: Code Signing (optional placeholder)
-# -----------------------
+# ----------------------- Stage 2: Code Signing (optional) ------------------
 - stage: Sign
   displayName: "Code Signing"
   dependsOn: Build
@@ -70,6 +76,7 @@ stages:
     - download: current
       artifact: drop
 
+    # TODO: add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature
     - task: PowerShell@2
       displayName: "Signing placeholder"
       inputs:
@@ -83,9 +90,7 @@ stages:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: 'signed'
 
-# -----------------------
-# Stage 3: Deploy to Pilot
-# -----------------------
+# ----------------------- Stage 3: Deploy to Pilot (AUTO) -------------------
 - stage: Pilot
   displayName: "Deploy to Pilot"
   dependsOn: [Build, Sign]
@@ -96,10 +101,12 @@ stages:
       runOnce:
         deploy:
           steps:
+          # Default: use 'drop'
           - download: current
             artifact: drop
             condition: ne(variables['EnableCodeSigning'], 'true')
 
+          # If signing is ON, use 'signed'
           - download: current
             artifact: signed
             condition: eq(variables['EnableCodeSigning'], 'true')
@@ -111,15 +118,13 @@ stages:
               script: |
                 Write-Host "Pilot: fetched artifact (signed? $(EnableCodeSigning))."
 
-# -----------------------
-# Stage 4: Deploy to Prod
-# -----------------------
+# ----------------------- Stage 4: Deploy to Prod (APPROVAL) ----------------
 - stage: Prod
   displayName: "Deploy to Production"
   dependsOn: Pilot
   jobs:
   - deployment: ProdDeploy
-    environment: Prod-Release
+    environment: Prod-Release   # add approval check in Environments UI
     strategy:
       runOnce:
         deploy:
