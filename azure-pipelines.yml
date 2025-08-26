@@ -1,5 +1,6 @@
-trigger:
-- main
+# Disable automatic triggers (manual runs only)
+trigger: none
+pr: none
 
 pool:
   vmImage: 'windows-latest'
