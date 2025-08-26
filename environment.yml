@@ -1,145 +1,93 @@
-# ---------- Triggers (auto on main, only when these paths change) ----------
-trigger:
-  branches: { include: [ main ] }
-  paths:
-    include:
-      - environment.yml
-      - setup/**
-      - azure-pipelines.yml
-pr:
-- main
+name: Analytics
+channels: [conda-forge]
+dependencies:
+  # --- Python + Jupyter ---
+  - python=3.11
+  - pip
+  - ipykernel
+  - jupyterlab
+  - ipywidgets
 
-pool:
-  vmImage: 'windows-latest'
+  # --- Core analytics / compute ---
+  - pandas
+  - numpy
+  - polars
+  - pyarrow
+  - fastparquet
+  - bottleneck
+  - numexpr
+  - duckdb            # local SQL engine (conda build)
 
-variables:
-  # Flip to 'true' only after you upload cert + set CODESIGN_PASSWORD secret
-  EnableCodeSigning: 'false'
-  ArtifactNameVar: 'drop'   # we pick the right artifact with step conditions below
+  # --- Files, Excel, legacy stats packages ---
+  - openpyxl
+  - xlsxwriter
+  - xlrd               # read legacy .xls
+  - pyxlsb             # read .xlsb
+  - pyreadstat         # SAS/Stata/SPSS files common in health data
 
-# ========================================================================== #
-#                                   STAGES                                   #
-# ========================================================================== #
+  # --- Compression & perf (Parquet/Arrow friendliness) ---
+  - lz4
+  - zstandard
+  - python-snappy
 
-# ----------------------- Stage 1: Build & Package --------------------------
-stages:
-- stage: Build
-  displayName: "Build & Package"
-  jobs:
-  - job: Build
-    steps:
-    # Lint (fail on ERROR only; show warnings/info)
-    - task: PowerShell@2
-      displayName: "Lint scripts (PSScriptAnalyzer)"
-      inputs:
-        targetType: inline
-        script: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $settings = "$(Build.SourcesDirectory)\setup\PSScriptAnalyzerSettings.psd1"
+  # --- Viz ---
+  - matplotlib
+  - seaborn
+  - plotly
+  - altair
 
-          $errors = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity Error -Settings $settings
-          if ($errors) {
-            $errors | Format-Table -AutoSize
-            throw "PSScriptAnalyzer found error-severity issues."
-          }
+  # --- Connectivity (DBs, HTTP) ---
+  - sqlalchemy
+  - pyodbc             # SQL Server via ODBC 18
+  - psycopg2           # PostgreSQL (optional but common)
+  - pymysql            # MySQL/MariaDB (optional)
+  - requests
+  - httpx
+  - aiohttp            # async pulls for APIs
 
-          $warnInfo = Invoke-ScriptAnalyzer -Path "$(Build.SourcesDirectory)" -Recurse -Severity @('Warning','Information') -Settings $settings
-          if ($warnInfo) {
-            Write-Host "`nNon-blocking PSScriptAnalyzer findings:"
-            $warnInfo | Format-Table -AutoSize
-          }
+  # --- Cloud & storage (Fabric/OneLake + common buckets) ---
+  - fsspec
+  - adlfs              # Azure Data Lake (Gen2) / OneLake via fsspec
+  - azure-identity
+  - azure-core
+  - azure-storage-blob
+  - azure-storage-file-datalake
+  - s3fs               # Amazon S3 (optional but small)
+  - gcsfs              # Google Cloud Storage (optional)
 
-    # Package repo to ZIP
-    - task: PowerShell@2
-      displayName: "Package repository to ZIP"
-      inputs:
-        targetType: inline
-        script: |
-          $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
-          Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
-          [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
+  # --- Data validation / modeling / utilities ---
+  - pydantic
+  - pandera            # DataFrame schema checks (lighter than GE)
+  - dateparser
+  - pyyaml
+  - jinja2             # templated SQL/ETL
+  - rich               # prettier CLI logs
+  - tenacity           # retries
+  - tqdm               # progress bars
+  - orjson             # fast JSON
 
-    - task: PublishBuildArtifacts@1
-      displayName: "Publish artifact (drop)"
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'drop'
+  # --- ML / stats (light but capable) ---
+  - scikit-learn
+  - statsmodels
 
-# ----------------------- Stage 2: Code Signing (optional) ------------------
-- stage: Sign
-  displayName: "Code Signing"
-  dependsOn: Build
-  condition: eq(variables['EnableCodeSigning'], 'true')
-  jobs:
-  - job: Sign
-    steps:
-    - download: current
-      artifact: drop
+  # --- Notebook ops & testing ---
+  - nbconvert
+  - papermill
+  - pytest
 
-    # TODO: add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature
-    - task: PowerShell@2
-      displayName: "Signing placeholder"
-      inputs:
-        targetType: inline
-        script: |
-          Write-Host "Add DownloadSecureFile + Import-PfxCertificate + Set-AuthenticodeSignature here."
+  # --- Lint/format (so VS Code works even offline) ---
+  - black
+  - ruff
+  - isort
 
-    - task: PublishBuildArtifacts@1
-      displayName: "Publish signed artifact"
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: 'signed'
+  # --- Security/crypto & tz data ---
+  - cryptography
+  - tzdata
 
-# ----------------------- Stage 3: Deploy to Pilot (AUTO) -------------------
-- stage: Pilot
-  displayName: "Deploy to Pilot"
-  dependsOn: [Build, Sign]
-  jobs:
-  - deployment: PilotDeploy
-    environment: Pilot-Release
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          # Default: use 'drop'
-          - download: current
-            artifact: drop
-            condition: ne(variables['EnableCodeSigning'], 'true')
+  # --- Keep these via pip (best wheels or not always on conda) ---
+  - pip:
+      - deltalake          # Delta Lake tables (good with Fabric/OneLake)
+      - msal               # AAD auth flows (can stay pip or conda; pip is fine)
+      - python-dotenv
+      - powerbiclient      # (Optional) embed Power BI in notebooks
 
-          # If signing is ON, use 'signed'
-          - download: current
-            artifact: signed
-            condition: eq(variables['EnableCodeSigning'], 'true')
-
-          - task: PowerShell@2
-            displayName: "Pilot no-op"
-            inputs:
-              targetType: inline
-              script: |
-                Write-Host "Pilot: fetched artifact (signed? $(EnableCodeSigning))."
-
-# ----------------------- Stage 4: Deploy to Prod (APPROVAL) ----------------
-- stage: Prod
-  displayName: "Deploy to Production"
-  dependsOn: Pilot
-  jobs:
-  - deployment: ProdDeploy
-    environment: Prod-Release   # add approval check in Environments UI
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: drop
-            condition: ne(variables['EnableCodeSigning'], 'true')
-
-          - download: current
-            artifact: signed
-            condition: eq(variables['EnableCodeSigning'], 'true')
-
-          - task: PowerShell@2
-            displayName: "Prod no-op"
-            inputs:
-              targetType: inline
-              script: |
-                Write-Host "Prod: fetched artifact (signed? $(EnableCodeSigning))."
