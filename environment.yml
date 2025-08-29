@@ -41,7 +41,6 @@ dependencies:
   - pyodbc             # SQL Server via ODBC 18
   - psycopg2           # PostgreSQL (optional but common)
   - pymysql            # MySQL/MariaDB (optional)
-  - requests
   - httpx
   - aiohttp            # async pulls for APIs
 
