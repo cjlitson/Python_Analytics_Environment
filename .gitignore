@@ -12,3 +12,7 @@ data/
 .vscode/.ropeproject
 .DS_Store
 Thumbs.db
+# Installer payload binaries
+installer/payload/*.exe
+installer/payload/*.msi
+installer/output/
