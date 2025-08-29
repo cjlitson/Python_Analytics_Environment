@@ -53,7 +53,7 @@ stages:
           inputs:
             targetType: inline
             script: |
-              $zipPath = "$(Build.ArtifactStagingDirectory)\analytics-workstation.zip"
+              $zipPath = "$(Build.ArtifactStagingDirectory)\python-analytics-env.zip"
               Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
               [System.IO.Compression.ZipFile]::CreateFromDirectory("$(Build.SourcesDirectory)", $zipPath)
 

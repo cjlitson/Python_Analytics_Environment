@@ -1,7 +1,7 @@
 # IT Deployment — Step by Step (Pilot/Prod + Code Signing)
 
 ## 0) Create Azure DevOps Project & Repo
-- Project: **Analytics-Workstation**
+- Project: **Python-Analytics-Environment**
 - Repo: **workstation-template** (import this repo)
 
 ## 1) Upload Code-Signing Certificate (recommended)
@@ -22,8 +22,8 @@
   - `ReleaseProdEnvironmentName: Prod-Release`
 
 ## 4) Run Pipeline
-- **Build**: lints scripts; packages `analytics-workstation.zip`
-- **Sign**: signs `.ps1` files using your PFX; outputs `analytics-workstation-signed.zip`
+- **Build**: lints scripts; packages `python-analytics-env.zip`
+- **Sign**: signs `.ps1` files using your PFX; outputs `python-analytics-env-signed.zip`
 - **Release: Pilot**: waits for approval on `Pilot-Release`; publishes signed artifact
 - **Release: Prod**: waits for approval on `Prod-Release`; publishes signed artifact
 

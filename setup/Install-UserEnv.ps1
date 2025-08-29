@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Configures per-user environment for the Analytics Workstation.
+Configures per-user environment for the Python Analytics Environment.
 Creates the 'Analytics' conda env, Jupyter kernel, and VS Code extensions.
 #>
 
