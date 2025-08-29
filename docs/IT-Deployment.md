@@ -2,11 +2,11 @@
 
 ## 0) Create Azure DevOps Project & Repo
 - Project: **Python-Analytics-Environment**
-- Repo: **workstation-template** (import this repo)
+- Repo: **python-analytics-env-template** (import this repo)
 
 ## 1) Upload Code-Signing Certificate (recommended)
 - Pipelines → **Library** → **Secure files** → Upload PFX as `codesign.pfx`
-- Pipelines → **Library** → **Variable groups** → Create `workstation-secure`
+- Pipelines → **Library** → **Variable groups** → Create `python-analytics-env-secure`
   - Secret variable **CODESIGN_PASSWORD** = PFX password
 
 ## 2) Create Environments with Approvals
