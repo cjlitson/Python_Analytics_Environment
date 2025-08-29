@@ -41,6 +41,22 @@ function Invoke-Safe {
   }
 }
 
+function Invoke-DownloadWithHash {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)][string]$Uri,
+    [Parameter(Mandatory)][string]$OutFile,
+    [Parameter(Mandatory)][string]$ExpectedHash
+  )
+
+  Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+  $actualHash = (Get-FileHash $OutFile -Algorithm SHA256).Hash
+  if ($actualHash -ne $ExpectedHash) {
+    Remove-Item $OutFile -Force -ErrorAction SilentlyContinue
+    throw "SHA256 mismatch for download from $Uri. Expected $ExpectedHash but got $actualHash."
+  }
+}
+
 function Install-WithWinget {
   param(
     [Parameter(Mandatory)][string]$IdOrName,
@@ -83,7 +99,8 @@ function Install-WingetIfMissing {
   $dst = Join-Path $env:TEMP "AppInstaller.msixbundle"
 
   try {
-    Invoke-WebRequest -Uri $appInstallerUrl -OutFile $dst -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://aka.ms/getwinget
+    Invoke-DownloadWithHash -Uri $appInstallerUrl -OutFile $dst -ExpectedHash $expectedHash
     Add-AppxPackage -Path $dst -ErrorAction Stop
     Remove-Item $dst -Force
     Write-Information "App Installer installed."
@@ -109,8 +126,8 @@ function Ensure-Miniconda {
   Write-Information "Installing Miniconda (All Users) at $Root…"
   $url = "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
   $exe = Join-Path $env:TEMP "Miniconda3-latest-Windows-x86_64.exe"
-
-  Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+  $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe.sha256
+  Invoke-DownloadWithHash -Uri $url -OutFile $exe -ExpectedHash $expectedHash
   $args = "/InstallationType=AllUsers /AddToPath=1 /RegisterPython=0 /S /D=$Root"
   Start-Process -FilePath $exe -ArgumentList $args -Wait
   Remove-Item $exe -Force
@@ -135,7 +152,8 @@ function Ensure-ODBC18 {
     Write-Warning "winget ODBC install failed or unavailable. Trying direct download…"
     $url = "https://go.microsoft.com/fwlink/?linkid=2240479"  # x64 driver 18
     $msi = Join-Path $env:TEMP "msodbcsql18.msi"
-    Invoke-WebRequest -Uri $url -OutFile $msi -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-18
+    Invoke-DownloadWithHash -Uri $url -OutFile $msi -ExpectedHash $expectedHash
     Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msi`" /qn IACCEPTMSODBCSQLLICENSETERMS=YES"
     Remove-Item $msi -Force
   }
@@ -153,7 +171,8 @@ function Ensure-AzCLI {
   if (-not (Install-WithWinget -IdOrName "Microsoft.AzureCLI")) {
     $url = "https://aka.ms/installazurecliwindows"
     $msi = Join-Path $env:TEMP "azure-cli.msi"
-    Invoke-WebRequest -Uri $url -OutFile $msi -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://learn.microsoft.com/cli/azure/install-azure-cli-windows
+    Invoke-DownloadWithHash -Uri $url -OutFile $msi -ExpectedHash $expectedHash
     Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msi`" /qn"
     Remove-Item $msi -Force
   }
@@ -172,7 +191,8 @@ function Ensure-AzCopy {
     $zipUrl = "https://aka.ms/downloadazcopy-v10-windows"
     $zip = Join-Path $env:TEMP "azcopy.zip"
     $dest = Join-Path $env:ProgramFiles "AzCopy"
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zip -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://learn.microsoft.com/azure/storage/common/storage-use-azcopy-v10#download-azcopy
+    Invoke-DownloadWithHash -Uri $zipUrl -OutFile $zip -ExpectedHash $expectedHash
     if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
     Expand-Archive -Path $zip -DestinationPath $dest -Force
     Remove-Item $zip -Force
@@ -198,7 +218,8 @@ function Ensure-VSCode {
   if (-not (Install-WithWinget -IdOrName "Microsoft.VisualStudioCode")) {
     $url = "https://update.code.visualstudio.com/latest/win32-x64-user/stable"
     $exe = Join-Path $env:TEMP "VSCodeSetup.exe"
-    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://update.code.visualstudio.com/latest/win32-x64-user/stable/sha256
+    Invoke-DownloadWithHash -Uri $url -OutFile $exe -ExpectedHash $expectedHash
     Start-Process -FilePath $exe -ArgumentList "/silent /mergetasks=!runcode" -Wait
     Remove-Item $exe -Force
   }
@@ -216,7 +237,8 @@ function Ensure-Git {
   if (-not (Install-WithWinget -IdOrName "Git.Git" -OverrideArgs "/VERYSILENT /NORESTART")) {
     $url = "https://github.com/git-for-windows/git/releases/latest/download/Git-64-bit.exe"
     $exe = Join-Path $env:TEMP "GitSetup.exe"
-    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://github.com/git-for-windows/git/releases/latest/download/SHA256SUMS
+    Invoke-DownloadWithHash -Uri $url -OutFile $exe -ExpectedHash $expectedHash
     Start-Process -FilePath $exe -ArgumentList "/VERYSILENT /NORESTART" -Wait
     Remove-Item $exe -Force
   }
@@ -234,7 +256,8 @@ function Ensure-ADS {
   if (-not (Install-WithWinget -IdOrName "Microsoft.AzureDataStudio")) {
     $url = "https://aka.ms/azuredatastudio-windows"
     $exe = Join-Path $env:TEMP "azuredatastudio.exe"
-    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+    $expectedHash = "REPLACE_WITH_ACTUAL_HASH" # SHA256 from https://learn.microsoft.com/sql/azure-data-studio/download-azure-data-studio
+    Invoke-DownloadWithHash -Uri $url -OutFile $exe -ExpectedHash $expectedHash
     Start-Process -FilePath $exe -ArgumentList "/verysilent /norestart" -Wait
     Remove-Item $exe -Force
   }
