@@ -1,6 +1,6 @@
-# Analytics Workstation Base — Fabric-Ready (Admin/User + AzDO Pilot/Prod)
+# Python Analytics Environment Base — Fabric-Ready (Admin/User + AzDO Pilot/Prod)
 
-This repo standardizes our analytics workstation and distribution:
+This repo standardizes our Python analytics environment and distribution:
 
 - **Admin** and **User** installers (PowerShell)
 - **Version pinning** via `environment.yml` (Python 3.11 + analyst packages)
@@ -13,7 +13,7 @@ This repo standardizes our analytics workstation and distribution:
 ## Quick Start
 
 ### Local/manual distribution (works even without the pipeline)
-1. Place this folder on a shared location (SharePoint/OneDrive/`\\Share\Analytics-Workstation`).
+1. Place this folder on a shared location (SharePoint/OneDrive/`\\Share\python-analytics-env`).
 2. **IT (Admin)** runs `Run-Admin.bat` (right-click → *Run as administrator*).  
    Installs Miniconda (All Users), VS Code, Git, ODBC 18, Azure CLI, AzCopy, etc.
 3. **Analysts (User)** run `Run-User.bat`.  

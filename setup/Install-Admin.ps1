@@ -1,6 +1,6 @@
 <# 
 .SYNOPSIS
-  Admin-level installer for Analytics Workstation prerequisites.
+  Admin-level installer for Python Analytics Environment prerequisites.
 .DESCRIPTION
   Installs/ensures the following are available:
     - Miniconda (All Users) at C:\ProgramData\Miniconda3 (configurable)
@@ -323,7 +323,7 @@ function Ensure-ADS {
 # -------------------------
 # Main
 # -------------------------
-Write-Information "===== Analytics Workstation Admin Setup ====="
+Write-Information "===== Python Analytics Environment Admin Setup ====="
 
 # Ensure winget first
 Install-WingetIfMissing @commonParams
