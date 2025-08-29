@@ -30,10 +30,9 @@
 ## 5) Rollout
 - IT grabs the released artifact ZIP.
 - On target machine:
-  - **Guided**: `Run-Setup.bat` (prompts for Admin or User)
   - **Installer**: `Python-Analytics-Env-Setup.exe` (wizard-based)
-  - **Admin**: `setup/Install-Admin.ps1` (apps; Power BI excluded—IT-managed elsewhere)
-  - **User**: `setup/Install-User.ps1` (creates env, kernel, installs VS Code extensions)
+  - **PowerShell**: `setup/Install-Admin.ps1` for prerequisites, `setup/Install-User.ps1` for the user environment
+  - **Manual**: run `conda env create -n Analytics -f environment.yml` and register the Jupyter kernel
 
 ## Version Pinning
 - Edit `setup/app-versions.json`:

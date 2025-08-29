@@ -343,4 +343,4 @@ if ($IncludeAzureDataStudio) {
   Ensure-ADS @commonParams
 }
 
-Write-Information "Admin setup complete. You can now run the user installer (Install-User.ps1) or Run-User.bat on each analyst machine."
+Write-Information "Admin setup complete. You can now run the user installer (Install-User.ps1) on each analyst machine or use the Windows installer."

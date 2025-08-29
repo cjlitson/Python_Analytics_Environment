@@ -2,10 +2,10 @@
 
 This repo standardizes our Python analytics environment and distribution:
 
-- **Admin** and **User** installers (PowerShell)
+- **Admin** and **User** installers (PowerShell) for automated setup
+- **Windows installer** for environments where scripts are blocked
 - **Version pinning** via `environment.yml` (Python 3.11 + analyst packages)
 - **Azure DevOps pipeline** to package (and optionally sign) a versioned ZIP
-- **Click-to-run launchers**: `Run-Setup.bat`, `Run-Admin.bat` and `Run-User.bat`
 - **Pilot → Prod** environments in DevOps (optional approvals for Prod)
 
 ---
@@ -13,13 +13,17 @@ This repo standardizes our Python analytics environment and distribution:
 ## Quick Start
 
 ### Local/manual distribution (works even without the pipeline)
-1. Place this folder on a shared location (SharePoint/OneDrive/`\\Share\python-analytics-env`).
-2. Run `Run-Setup.bat` and follow the prompts:
-   - **Admin** option installs Miniconda (All Users), VS Code, Git, ODBC 18, Azure CLI, AzCopy, etc.
-   - **User** option creates/updates the **Analytics** conda env, adds a Jupyter kernel, and installs VS Code extensions.
-   *(Direct modes remain available via `Run-Admin.bat` and `Run-User.bat`.)*
-3. In VS Code: **Python: Select Interpreter** → *Python 3.11 (Analytics)*
-
+1. Place this folder on a shared location (SharePoint/OneDrive/\\Share\python-analytics-env).
+2. Run the Windows installer `Python-Analytics-Env-Setup.exe` **or** use PowerShell installers if scripts are allowed:
+   - `setup/Install-Admin.ps1` installs Miniconda, VS Code, Git, ODBC 18, Azure CLI, AzCopy, etc.
+   - `setup/Install-User.ps1` creates/updates the **Analytics** conda env, adds a Jupyter kernel, and installs VS Code extensions.
+3. If script execution is blocked, perform the steps manually:
+   ```bash
+   conda env create -n Analytics -f environment.yml
+   python -m ipykernel install --user --name Analytics --display-name "Python 3.11 (Analytics)"
+   code --install-extension ms-python.python ms-python.vscode-pylance ms-toolsai.jupyter ms-mssql.mssql "eamodio.gitlens" charliermarsh.ruff ms-python.black-formatter ms-vscode.powershell
+   ```
+4. In VS Code: **Python: Select Interpreter** → *Python 3.11 (Analytics)*
 ### CI/CD distribution (recommended)
 1. DevOps pipeline builds a ZIP and publishes it as the **drop** artifact.
 2. (Optional) Signing stage produces a **signed** artifact.
@@ -64,11 +68,9 @@ Create two DevOps environments (one-time):
 ---
 
 ## What to run
-
-- Guided: `Run-Setup.bat` (prompts for Admin or User)
-- IT: `Run-Admin.bat` (elevated)
-- Analyst: `Run-User.bat`
-
+- Windows installer: `Python-Analytics-Env-Setup.exe`
+- PowerShell installers (if allowed): `setup/Install-Admin.ps1` and `setup/Install-User.ps1`
+- Manual steps: see Quick Start for command-line equivalents
 ## Windows Installer (no PowerShell UI)
 
 We now ship a classic Windows installer built with **Inno Setup**. It:
