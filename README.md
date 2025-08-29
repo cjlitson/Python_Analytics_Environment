@@ -68,3 +68,31 @@ Create two DevOps environments (one-time):
 - Guided: `Run-Setup.bat` (prompts for Admin or User)
 - IT: `Run-Admin.bat` (elevated)
 - Analyst: `Run-User.bat`
+
+## Windows Installer (no PowerShell UI)
+
+We now ship a classic Windows installer built with **Inno Setup**. It:
+- Creates a Python environment from `environment.yml` using **micromamba**
+- Registers a Jupyter kernel
+- (Optional) installs VS Code extensions if VS Code is present
+
+### Build locally
+1. Install Inno Setup: https://jrsoftware.org/isinfo.php
+2. From repo root, fetch payload:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File installer/fetch-payload.ps1
+   ```
+3. Open `installer/build.iss` in Inno Setup Compiler and click **Build**.
+4. Output is `Output/Python-Analytics-Env-Setup.exe`.
+
+### Build in GitHub Actions (optional)
+
+* Workflow: `.github/workflows/build-installer.yml`
+* Trigger manually or push a tag `vX.Y.Z`.
+* Download the installer from workflow artifacts.
+
+### Install defaults
+
+* Root directory: `C:\Tools\python-analytics`
+* Environment name: `Analytics`
+* Jupyter kernel display name: `Python 3.11 (Analytics)`

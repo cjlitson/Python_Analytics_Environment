@@ -1,0 +1,38 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: actions/setup-pwsh@v1
+
+      - name: Fetch payload (micromamba + environment.yml)
+        shell: pwsh
+        run: |
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          ./installer/fetch-payload.ps1
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build installer
+        run: |
+          "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" installer\build.iss
+        shell: cmd
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Python-Analytics-Env-Setup
+          path: Output/*.exe
+          if-no-files-found: error
