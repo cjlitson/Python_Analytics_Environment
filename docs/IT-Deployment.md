@@ -30,8 +30,9 @@
 ## 5) Rollout
 - IT grabs the released artifact ZIP.
 - On target machine:
+  - **Guided**: `Run-Setup.bat` (prompts for Admin or User)
   - **Admin**: `setup/Install-Admin.ps1` (apps; Power BI excluded—IT-managed elsewhere)
-  - **User**: `setup/Install-UserEnv.ps1` (creates env, kernel, installs VS Code extensions)
+  - **User**: `setup/Install-User.ps1` (creates env, kernel, installs VS Code extensions)
 
 ## Version Pinning
 - Edit `setup/app-versions.json`:

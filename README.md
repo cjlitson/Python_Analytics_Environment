@@ -5,7 +5,7 @@ This repo standardizes our Python analytics environment and distribution:
 - **Admin** and **User** installers (PowerShell)
 - **Version pinning** via `environment.yml` (Python 3.11 + analyst packages)
 - **Azure DevOps pipeline** to package (and optionally sign) a versioned ZIP
-- **Click-to-run launchers**: `Run-Admin.bat` and `Run-User.bat`
+- **Click-to-run launchers**: `Run-Setup.bat`, `Run-Admin.bat` and `Run-User.bat`
 - **Pilot → Prod** environments in DevOps (optional approvals for Prod)
 
 ---
@@ -14,11 +14,11 @@ This repo standardizes our Python analytics environment and distribution:
 
 ### Local/manual distribution (works even without the pipeline)
 1. Place this folder on a shared location (SharePoint/OneDrive/`\\Share\python-analytics-env`).
-2. **IT (Admin)** runs `Run-Admin.bat` (right-click → *Run as administrator*).  
-   Installs Miniconda (All Users), VS Code, Git, ODBC 18, Azure CLI, AzCopy, etc.
-3. **Analysts (User)** run `Run-User.bat`.  
-   Creates/updates the **Analytics** conda env, adds a Jupyter kernel, and installs VS Code extensions.
-4. In VS Code: **Python: Select Interpreter** → *Python 3.11 (Analytics)*
+2. Run `Run-Setup.bat` and follow the prompts:
+   - **Admin** option installs Miniconda (All Users), VS Code, Git, ODBC 18, Azure CLI, AzCopy, etc.
+   - **User** option creates/updates the **Analytics** conda env, adds a Jupyter kernel, and installs VS Code extensions.
+   *(Direct modes remain available via `Run-Admin.bat` and `Run-User.bat`.)*
+3. In VS Code: **Python: Select Interpreter** → *Python 3.11 (Analytics)*
 
 ### CI/CD distribution (recommended)
 1. DevOps pipeline builds a ZIP and publishes it as the **drop** artifact.
@@ -65,5 +65,6 @@ Create two DevOps environments (one-time):
 
 ## What to run
 
+- Guided: `Run-Setup.bat` (prompts for Admin or User)
 - IT: `Run-Admin.bat` (elevated)
 - Analyst: `Run-User.bat`
