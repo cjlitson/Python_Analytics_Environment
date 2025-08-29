@@ -22,10 +22,27 @@ $repoRoot = Resolve-Path "$PSScriptRoot\.."
 $envYml   = Join-Path $repoRoot "environment.yml"
 if (-not (Test-Path $envYml)) { throw "environment.yml not found at $envYml" }
 
-# Remove old env and recreate from YAML
-Write-Information "Recreating Conda environment: $EnvName"
-& $conda env remove -n $EnvName -y | Out-Null 2>$null
-& $conda env create -n $EnvName -f $envYml -y
+# Create or update env from YAML
+$envDirs = @(
+  "$env:USERPROFILE\Miniconda3\envs\$EnvName",
+  "$env:LOCALAPPDATA\miniconda3\envs\$EnvName"
+)
+$envExists = $false
+foreach ($d in $envDirs) {
+  if (Test-Path $d) { $envExists = $true; break }
+}
+if ($envExists) {
+  $resp = Read-Host "$EnvName environment already exists. Update from environment.yml? [y/N]"
+  if ($resp -match '^[Yy]') {
+    Write-Information "Updating Conda environment: $EnvName"
+    & $conda env update -n $EnvName -f $envYml --prune
+  } else {
+    Write-Information "Skipping environment update."
+  }
+} else {
+  Write-Information "Creating Conda environment: $EnvName"
+  & $conda env create -n $EnvName -f $envYml -y
+}
 
 # Register Jupyter kernel
 $py = "$env:USERPROFILE\Miniconda3\envs\$EnvName\python.exe"
