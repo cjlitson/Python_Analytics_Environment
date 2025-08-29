@@ -91,6 +91,14 @@ We now ship a classic Windows installer built with **Inno Setup**. It:
 * Trigger manually or push a tag `vX.Y.Z`.
 * Download the installer from workflow artifacts.
 
+### Run
+
+After building or downloading `Python-Analytics-Env-Setup.exe`, launch it and follow the wizard prompts. For a silent install, run:
+
+```powershell
+./Python-Analytics-Env-Setup.exe /VERYSILENT
+```
+
 ### Install defaults
 
 * Root directory: `C:\Tools\python-analytics`
