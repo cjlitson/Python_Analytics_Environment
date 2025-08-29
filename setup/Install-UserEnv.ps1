@@ -4,7 +4,7 @@ Configures per-user environment for the Analytics Workstation.
 Creates the 'Analytics' conda env, Jupyter kernel, and VS Code extensions.
 #>
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
   [string]$EnvName = "Analytics"
 )
@@ -24,13 +24,19 @@ if (-not (Test-Path $envYml)) { throw "environment.yml not found at $envYml" }
 
 # Remove old env and recreate from YAML
 Write-Information "Recreating Conda environment: $EnvName"
-& $conda env remove -n $EnvName -y | Out-Null 2>$null
-& $conda env create -n $EnvName -f $envYml -y
+if ($PSCmdlet.ShouldProcess("Conda env $EnvName","Remove")) {
+  & $conda env remove -n $EnvName -y | Out-Null 2>$null
+}
+if ($PSCmdlet.ShouldProcess("Conda env $EnvName","Create")) {
+  & $conda env create -n $EnvName -f $envYml -y
+}
 
 # Register Jupyter kernel
 $py = "$env:USERPROFILE\Miniconda3\envs\$EnvName\python.exe"
 if (-not (Test-Path $py)) { $py = "$env:LOCALAPPDATA\miniconda3\envs\$EnvName\python.exe" }
-& $py -m ipykernel install --user --name $EnvName --display-name "Python 3.11 ($EnvName)"
+if ($PSCmdlet.ShouldProcess("Jupyter kernel $EnvName","Install")) {
+  & $py -m ipykernel install --user --name $EnvName --display-name "Python 3.11 ($EnvName)"
+}
 
 # Install recommended VS Code extensions
 $exts = @(
@@ -44,7 +50,11 @@ $exts = @(
   "ms-vscode.powershell"
 )
 
-foreach ($e in $exts) { code --install-extension $e --force }
+foreach ($e in $exts) {
+  if ($PSCmdlet.ShouldProcess("VS Code extension $e","Install")) {
+    code --install-extension $e --force
+  }
+}
 
 Write-Information "`n✅ User environment ready."
 Write-Information "In VS Code: Ctrl+Shift+P → 'Python: Select Interpreter' → Python 3.11 ($EnvName)"
